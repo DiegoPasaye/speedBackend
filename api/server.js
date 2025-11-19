@@ -102,7 +102,6 @@ app.post("/api/login", async (req, res) => {
   }
 
   try {
-    // Buscar el usuario
     const result = await pool.query(
       'SELECT * FROM "User" WHERE username = $1',
       [username]
