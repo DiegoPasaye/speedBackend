@@ -45,6 +45,7 @@ app.get("/api/leaderboard", async (req, res) => {
 
 // --- REGISTRO ---
 app.post("/api/register", async (req, res) => {
+  res.json({ message: "Register funcionando correctamente en Vercel 🚀" });
   const { username, email, password, display_name } = req.body;
 
   // Validar campos obligatorios
@@ -94,6 +95,7 @@ app.post("/api/register", async (req, res) => {
 
 // --- LOGIN ---
 app.post("/api/login", async (req, res) => {
+  res.json({ message: "Login funcionando correctamente en Vercel 🚀" });
   const { username, password } = req.body;
 
   // Validar campos
