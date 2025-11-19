@@ -112,7 +112,6 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ error: "Usuario o contraseña incorrectos" });
     }
 
-    // Comparar contraseña
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
       return res.status(400).json({ error: "Usuario o contraseña incorrectos" });
