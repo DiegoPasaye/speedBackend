@@ -33,12 +33,17 @@ app.get("/api", (req, res) => {
 // Ejemplo de endpoint
 app.get("/api/leaderboard", async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT username, score FROM scores ORDER BY score DESC LIMIT 10"
-    );
+    const result = await pool.query(`
+      SELECT u.username, ps.high_score 
+      FROM player_score ps
+      JOIN "User" u ON ps.user_id = u.user_id
+      ORDER BY ps.high_score DESC 
+      LIMIT 3
+    `);
+    
     res.json(result.rows);
   } catch (error) {
-    console.error(error);
+    console.error("Error al obtener leaderboard:", error);
     res.status(500).json({ error: "Error al consultar leaderboard" });
   }
 });
