@@ -8,7 +8,13 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors());
+// CONFIGURACIÓN DE CORS cors
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
 app.use(express.json());
 
 // Conexión a Neon
@@ -17,100 +23,93 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Solamente para probar en desarrollo loca, valida que no se ejecute en producción, hay que eliminar este bloque para producción
-if (process.env.NODE_ENV !== "production") {
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => {
-    console.log(`🚀 Servidor local corriendo en http://localhost:${port}`);
-  });
-}
-
-// Ruta de prueba
+// --- RUTA BASE ---
 app.get("/api", (req, res) => {
-  res.json({ message: "Backend funcionando correctamente en Vercel 🚀" });
+  res.json({ message: "Backend Speed funcionando correctamente en Vercel 🚀" });
 });
 
-// Ejemplo de endpoint
-app.get("/api/leaderboard", async (req, res) => {
+// --- RUTA DE PRUEBA DB ---
+app.get("/api/health", async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT u.username, ps.high_score 
-      FROM player_score ps
-      JOIN "User" u ON ps.user_id = u.user_id
-      ORDER BY ps.high_score DESC 
-      LIMIT 3
-    `);
-    
-    res.json(result.rows);
+    const result = await pool.query("SELECT NOW()");
+    res.json({ status: "OK", db_time: result.rows[0].now });
   } catch (error) {
-    console.error("Error al obtener leaderboard:", error);
-    res.status(500).json({ error: "Error al consultar leaderboard" });
+    res.status(500).json({ status: "ERROR", error: error.message });
   }
 });
 
 // --- REGISTRO ---
 app.post("/api/register", async (req, res) => {
+
   const { username, email, password, display_name } = req.body;
 
-  // Validar campos obligatorios
   if (!username || !email || !password || !display_name) {
     return res.status(400).json({ error: "Faltan campos obligatorios" });
   }
 
+  const client = await pool.connect(); // Usamos cliente para transacción
+
   try {
-    // Verificar si el usuario ya existe
-    const existingUser = await pool.query(
-      'SELECT * FROM "User" WHERE username = $1',
-      [username]
+    await client.query('BEGIN');
+
+    // Verificar duplicados
+    const existingUser = await client.query(
+      'SELECT * FROM "User" WHERE username = $1 OR email = $2',
+      [username, email]
     );
+
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ error: "El usuario ya existe" });
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: "El usuario o correo ya existen" });
     }
 
-    // Encriptar la contraseña
+    // Encriptar
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Crear el usuario
-    const newUser = await pool.query(
+    // Crear Usuario
+    const newUserRes = await client.query(
       `INSERT INTO "User" (username, email, password_hash)
        VALUES ($1, $2, $3)
        RETURNING user_id, username, created_at`,
       [username, email, hashedPassword]
     );
+    const newUser = newUserRes.rows[0];
 
-    // Crear el perfil asociado
-    await pool.query(
+    // Crear Perfil
+    await client.query(
       `INSERT INTO "Profile" (user_id, display_name)
        VALUES ($1, $2)`,
-      [newUser.rows[0].user_id, display_name]
+      [newUser.user_id, display_name]
     );
+
+    await client.query('COMMIT');
 
     res.status(201).json({
       message: "Usuario registrado correctamente",
-      user: newUser.rows[0]
+      user: newUser
     });
 
   } catch (error) {
-    console.error("Error en /api/register:", error);
+    await client.query('ROLLBACK');
+    console.error("Error en registro:", error);
     res.status(500).json({ error: "Error interno del servidor" });
+  } finally {
+    client.release();
   }
 });
 
 
 // --- LOGIN ---
 app.post("/api/login", async (req, res) => {
+
   const { username, password } = req.body;
 
-  // Validar campos
   if (!username || !password) {
     return res.status(400).json({ error: "Faltan campos obligatorios" });
   }
 
   try {
-    const result = await pool.query(
-      'SELECT * FROM "User" WHERE username = $1',
-      [username]
-    );
+    const result = await pool.query('SELECT * FROM "User" WHERE username = $1', [username]);
     const user = result.rows[0];
 
     if (!user) {
@@ -122,7 +121,6 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ error: "Usuario o contraseña incorrectos" });
     }
 
-    // Obtener datos del perfil
     const profileResult = await pool.query(
       'SELECT display_name, monedas FROM "Profile" WHERE user_id = $1',
       [user.user_id]
@@ -133,16 +131,17 @@ app.post("/api/login", async (req, res) => {
       user: {
         user_id: user.user_id,
         username: user.username,
+        email: user.email,
         created_at: user.created_at,
         profile: profileResult.rows[0]
       }
     });
 
   } catch (error) {
-    console.error("Error en /api/login:", error);
+    console.error("Error en login:", error);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
-// Exportación obligatoria para Vercel
+// Exportación para Vercel
 export default app;
