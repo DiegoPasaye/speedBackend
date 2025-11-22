@@ -143,5 +143,41 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+
+
+// --- LEADERBOARD GLOBAL (Suma de todos los mapas) ---
+app.get("/api/leaderboard/global", async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        p.display_name,
+        SUM(ps.high_score) as total_score
+      FROM "Player_Score" ps
+      JOIN "Profile" p ON ps.user_id = p.user_id
+      GROUP BY p.user_id, p.display_name
+      ORDER BY total_score DESC
+      LIMIT 5
+    `;
+
+    const result = await pool.query(query);
+
+    res.json({
+      leaderboard: result.rows
+    });
+
+  } catch (error) {
+    console.error("Error obteniendo leaderboard global:", error);
+    res.status(500).json({ error: "Error al obtener el ranking global" });
+  }
+});
+
 // Exportación para Vercel
 export default app;
+
+
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
