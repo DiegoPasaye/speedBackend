@@ -3,6 +3,7 @@
 /node_modules
 test-db.js
 view-users.js
+cars.js
 
 # Logs
 # Ignora archivos de log que se generan automáticamente
