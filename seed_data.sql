@@ -1,24 +1,44 @@
 -- ==========================================
--- SCRIPT DE POBLADO MASIVO (SEEDING) - V7 (VARIABILIDAD REALISTA)
+-- SCRIPT DE POBLADO MASIVO (SEEDING) - V10 (Mapas con Lore)
 -- ==========================================
 
--- 0. ACTIVAR EXTENSIÓN DE ENCRIPTACIÓN
+-- 0. ACTIVAR EXTENSIÓN
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- 1. AJUSTES DE ESQUEMA
+-- 1. AJUSTES DE ESQUEMA (Correcciones y Nuevos Campos)
 ALTER TABLE "Car" DROP COLUMN IF EXISTS "base_agarre";
 ALTER TABLE "Player_Car" DROP COLUMN IF EXISTS "level_agarre";
 ALTER TABLE "Car" ADD COLUMN IF NOT EXISTS "base_aceleracion" FLOAT NOT NULL DEFAULT 1.0;
+ALTER TABLE "Profile" ADD COLUMN IF NOT EXISTS "races_played" INT NOT NULL DEFAULT 0;
 
--- 2. LIMPIEZA DE DATOS
+-- ¡NUEVO! Agregamos descripción a los mapas
+ALTER TABLE "Map" ADD COLUMN IF NOT EXISTS "description" TEXT;
+
+-- 2. LIMPIEZA
 TRUNCATE "User", "Map", "Car", "Achievement", "Group" RESTART IDENTITY CASCADE;
 
--- 3. INSERTAR MAPAS
-INSERT INTO "Map" (name, cost_to_unlock) VALUES 
-('Cañón Desértico', 0),
-('Montaña Nevada', 2500),
-('Ciudad Neón', 5000),
-('Superficie Lunar', 10000);
+-- 3. INSERTAR MAPAS (Con Descripciones Épicas)
+INSERT INTO "Map" (name, cost_to_unlock, description) VALUES 
+(
+    'Cañón Desértico', 
+    0, 
+    'Un terreno árido e implacable donde solo los más resistentes sobreviven. Dunas traicioneras, calor extremo y saltos mortales sobre abismos de roca roja. El campo de pruebas perfecto para novatos.'
+),
+(
+    'Montaña Nevada', 
+    2500, 
+    'Picos congelados donde la tracción es un lujo. Enfréntate a ventiscas cegadoras y pendientes de hielo resbaladizo. Solo los vehículos con mejor control lograrán llegar a la cima sin deslizarse al vacío.'
+),
+(
+    'Ciudad Neón', 
+    5000, 
+    'Una metrópolis cyberpunk suspendida en la noche eterna. Autopistas de alta velocidad iluminadas por neón, loopings que desafían la física y rampas tecnológicas. Aquí, la velocidad pura es la única ley.'
+),
+(
+    'Superficie Lunar', 
+    10000, 
+    'La frontera final. Experimenta la baja gravedad en un paisaje de cráteres silenciosos y polvo gris. Los saltos aquí son eternos, pero cuidado con perder el control y flotar hacia la nada.'
+);
 
 -- 4. INSERTAR LOGROS
 INSERT INTO "Achievement" (name, description, reward_monedas) VALUES 
@@ -28,26 +48,35 @@ INSERT INTO "Achievement" (name, description, reward_monedas) VALUES
 ('Explorador', 'Desbloquea un mapa nuevo', 800),
 ('Mecánico', 'Realiza tu primera mejora de vehículo', 300);
 
--- 5. INSERTAR COCHES 
+-- 5. INSERTAR COCHES (4 Modelos x 4 Colores)
 INSERT INTO "Car" (name, cost_to_unlock, base_motor, base_durabilidad, base_aceleracion) VALUES 
--- Buggies
-('Buggy Rojo', 0, 1.0, 1.0, 1.0),
-('Buggy Azul', 500, 1.0, 1.0, 1.0),
-('Buggy Verde', 500, 1.0, 1.0, 1.0),
--- Monster Trucks
-('Monster Truck Fuego', 2000, 0.8, 2.0, 0.7),
-('Monster Truck Hielo', 2000, 0.8, 2.0, 0.7),
-('Monster Truck Toxico', 2000, 0.8, 2.0, 0.7),
--- Deportivos
-('Racer X Rojo', 5000, 2.0, 0.5, 1.8),
-('Racer X Negro', 5000, 2.0, 0.5, 1.8),
-('Racer X Blanco', 5000, 2.0, 0.5, 1.8),
--- Jeeps
-('Jeep 4x4 Militar', 8000, 0.7, 1.8, 0.9),
-('Jeep 4x4 Safari', 8000, 0.7, 1.8, 0.9),
-('Jeep 4x4 Urbano', 8000, 0.7, 1.8, 0.9);
 
--- 6. GENERAR 30 USUARIOS (Lógica con Variabilidad)
+-- MODELO 1: "Street Tuner"
+('Street Tuner Rojo', 0, 1.0, 1.0, 1.0),
+('Street Tuner Verde', 500, 1.0, 1.0, 1.0),
+('Street Tuner Púrpura', 500, 1.0, 1.0, 1.0),
+('Street Tuner Amarillo', 500, 1.0, 1.0, 1.0),
+
+-- MODELO 2: "Terra SUV"
+('Terra SUV Rojo', 2000, 0.8, 2.0, 0.7),
+('Terra SUV Verde', 2000, 0.8, 2.0, 0.7),
+('Terra SUV Púrpura', 2000, 0.8, 2.0, 0.7),
+('Terra SUV Amarillo', 2000, 0.8, 2.0, 0.7),
+
+-- MODELO 3: "Phantom GT"
+('Phantom GT Rojo', 5000, 1.8, 0.8, 1.2),
+('Phantom GT Verde', 5000, 1.8, 0.8, 1.2),
+('Phantom GT Púrpura', 5000, 1.8, 0.8, 1.2),
+('Phantom GT Amarillo', 5000, 1.8, 0.8, 1.2),
+
+-- MODELO 4: "Solaris Supercar"
+('Solaris Supercar Rojo', 8000, 2.2, 0.5, 2.0),
+('Solaris Supercar Verde', 8000, 2.2, 0.5, 2.0),
+('Solaris Supercar Púrpura', 8000, 2.2, 0.5, 2.0),
+('Solaris Supercar Amarillo', 8000, 2.2, 0.5, 2.0);
+
+
+-- 6. GENERAR 30 USUARIOS (Simulación)
 DO $$
 DECLARE
     curr_user_id UUID;
@@ -57,33 +86,33 @@ DECLARE
     i INT;
     j INT;
     rand_coins INT;
-    -- Variables para controlar la cantidad aleatoria de items por usuario
+    rand_races INT;
     num_cars_extra INT;
     num_maps_extra INT;
     num_achs_extra INT;
 BEGIN
     FOR i IN 1..30 LOOP
         
-        -- A. Crear Usuario
         INSERT INTO "User" (username, email, password_hash) 
         VALUES ('usuario' || i, 'usuario' || i || '@speed.com', crypt('123456', gen_salt('bf')))
         RETURNING user_id INTO curr_user_id;
 
-        -- B. Crear Perfil (Monedas muy variadas: unos pobres, otros ricos)
-        rand_coins := floor(random() * 80000); 
-        INSERT INTO "Profile" (user_id, display_name, monedas)
-        VALUES (curr_user_id, 'Corredor ' || i, rand_coins);
+        rand_coins := floor(random() * 80000);
+        rand_races := floor(random() * 200);
+        
+        INSERT INTO "Profile" (user_id, display_name, monedas, races_played)
+        VALUES (curr_user_id, 'Corredor ' || i, rand_coins, rand_races);
 
-        -- C. Coche Inicial (Siempre tienen este)
-        SELECT car_id INTO curr_car_id FROM "Car" WHERE name = 'Buggy Rojo';
+        -- Coche Inicial
+        SELECT car_id INTO curr_car_id FROM "Car" WHERE name = 'Street Tuner Rojo';
         INSERT INTO "Player_Car" (user_id, car_id, level_motor, level_durabilidad)
         VALUES (curr_user_id, curr_car_id, floor(random()*3), floor(random()*3));
 
-        -- D. Coches Extra (Aleatorio entre 0 y 4 coches más)
-        num_cars_extra := floor(random() * 5); -- Da un número entre 0 y 4
+        -- Coches Extra
+        num_cars_extra := floor(random() * 5);
         IF num_cars_extra > 0 THEN
             FOR j IN 1..num_cars_extra LOOP
-                SELECT car_id INTO curr_car_id FROM "Car" WHERE name != 'Buggy Rojo' ORDER BY random() LIMIT 1;
+                SELECT car_id INTO curr_car_id FROM "Car" WHERE name != 'Street Tuner Rojo' ORDER BY random() LIMIT 1;
                 BEGIN
                     INSERT INTO "Player_Car" (user_id, car_id, level_motor, level_durabilidad)
                     VALUES (curr_user_id, curr_car_id, floor(random()*10), floor(random()*10));
@@ -91,26 +120,26 @@ BEGIN
             END LOOP;
         END IF;
 
-        -- E. Mapa Inicial (Siempre tienen este)
+        -- Mapa Inicial (Cañón)
         SELECT map_id INTO curr_map_id FROM "Map" WHERE name = 'Cañón Desértico';
         INSERT INTO "Player_Map_Inventory" (user_id, map_id) VALUES (curr_user_id, curr_map_id);
         INSERT INTO "Player_Score" (user_id, map_id, high_score) 
-        VALUES (curr_user_id, curr_map_id, floor(random() * 2000)); -- Puntuación baja en el inicial
+        VALUES (curr_user_id, curr_map_id, floor(random() * 2000));
 
-        -- F. Mapas Extra (Aleatorio entre 0 y 3 mapas más)
-        num_maps_extra := floor(random() * 4); -- Da un número entre 0 y 3
+        -- Mapas Extra
+        num_maps_extra := floor(random() * 4);
         IF num_maps_extra > 0 THEN
             FOR curr_map_id IN SELECT map_id FROM "Map" WHERE name != 'Cañón Desértico' ORDER BY random() LIMIT num_maps_extra LOOP
                 BEGIN
                     INSERT INTO "Player_Map_Inventory" (user_id, map_id) VALUES (curr_user_id, curr_map_id);
                     INSERT INTO "Player_Score" (user_id, map_id, high_score) 
-                    VALUES (curr_user_id, curr_map_id, floor(random() * 15000)); -- Puntuaciones más altas
+                    VALUES (curr_user_id, curr_map_id, floor(random() * 15000));
                 EXCEPTION WHEN unique_violation THEN END;
             END LOOP;
         END IF;
 
-        -- G. Logros (Aleatorio entre 0 y 5 logros)
-        num_achs_extra := floor(random() * 6); -- Da un número entre 0 y 5
+        -- Logros
+        num_achs_extra := floor(random() * 6);
         IF num_achs_extra > 0 THEN
             FOR curr_ach_id IN SELECT achievement_id FROM "Achievement" ORDER BY random() LIMIT num_achs_extra LOOP
                 BEGIN
