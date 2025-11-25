@@ -140,7 +140,7 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// --- LEADERBOARD GLOBAL (Suma de todos los mapas) ---
+// --- LEADERBOARD GLOBAL (Suma de todos los mapass) ---
 app.get("/api/leaderboard/global", async (req, res) => {
   try {
     const query = `
