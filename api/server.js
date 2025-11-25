@@ -178,8 +178,7 @@ app.get("/api/leaderboard/global", async (req, res) => {
 // --- 4. PERFIL COMPLETO (ESTE FALTABA) ---
 app.get("/api/profile/:userId", async (req, res) => {
   const { userId } = req.params;
-
-  try {
+  try{
     // Datos del Usuario
     const userQuery = await pool.query(`
       SELECT u.username, u.created_at, p.display_name, p.monedas, p.races_played
