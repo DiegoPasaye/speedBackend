@@ -175,76 +175,79 @@ app.get("/api/leaderboard/global", async (req, res) => {
 //     console.log(`Server running on http://localhost:${PORT}`);
 //   });
 // }
+
+
+// PRUEBA A VER SI ESTE FALLA
 // --- 4. PERFIL COMPLETO (ESTE FALTABA) ---
-app.get("/api/profile/:userId", async (req, res) => {
-  const { userId } = req.params;
-  try{
-    // Datos del Usuario
-    const userQuery = await pool.query(`
-      SELECT u.username, u.created_at, p.display_name, p.monedas, p.races_played
-      FROM "User" u
-      JOIN "Profile" p ON u.user_id = p.user_id
-      WHERE u.user_id = $1
-    `, [userId]);
+// app.get("/api/profile/:userId", async (req, res) => {
+//   const { userId } = req.params;
+//   try{
+//     // Datos del Usuario
+//     const userQuery = await pool.query(`
+//       SELECT u.username, u.created_at, p.display_name, p.monedas, p.races_played
+//       FROM "User" u
+//       JOIN "Profile" p ON u.user_id = p.user_id
+//       WHERE u.user_id = $1
+//     `, [userId]);
 
-    if (userQuery.rows.length === 0) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
-    }
-    const userData = userQuery.rows[0];
+//     if (userQuery.rows.length === 0) {
+//       return res.status(404).json({ error: "Usuario no encontrado" });
+//     }
+//     const userData = userQuery.rows[0];
 
-    // Garaje
-    const garageQuery = await pool.query(`
-      SELECT c.*, 
-             CASE WHEN pc.user_id IS NOT NULL THEN true ELSE false END as unlocked,
-             COALESCE(pc.level_motor, 0) as level_motor,
-             COALESCE(pc.level_durabilidad, 0) as level_durabilidad
-      FROM "Car" c
-      LEFT JOIN "Player_Car" pc ON c.car_id = pc.car_id AND pc.user_id = $1
-      ORDER BY c.cost_to_unlock ASC
-    `, [userId]);
+//     // Garaje
+//     const garageQuery = await pool.query(`
+//       SELECT c.*, 
+//              CASE WHEN pc.user_id IS NOT NULL THEN true ELSE false END as unlocked,
+//              COALESCE(pc.level_motor, 0) as level_motor,
+//              COALESCE(pc.level_durabilidad, 0) as level_durabilidad
+//       FROM "Car" c
+//       LEFT JOIN "Player_Car" pc ON c.car_id = pc.car_id AND pc.user_id = $1
+//       ORDER BY c.cost_to_unlock ASC
+//     `, [userId]);
 
-    // Logros
-    const trophiesQuery = await pool.query(`
-      SELECT a.*, 
-             CASE WHEN pa.user_id IS NOT NULL THEN true ELSE false END as achieved,
-             pa.unlocked_at
-      FROM "Achievement" a
-      LEFT JOIN "Player_Achievement" pa ON a.achievement_id = pa.achievement_id AND pa.user_id = $1
-      ORDER BY a.reward_monedas ASC
-    `, [userId]);
+//     // Logros
+//     const trophiesQuery = await pool.query(`
+//       SELECT a.*, 
+//              CASE WHEN pa.user_id IS NOT NULL THEN true ELSE false END as achieved,
+//              pa.unlocked_at
+//       FROM "Achievement" a
+//       LEFT JOIN "Player_Achievement" pa ON a.achievement_id = pa.achievement_id AND pa.user_id = $1
+//       ORDER BY a.reward_monedas ASC
+//     `, [userId]);
 
-    // Récords
-    const recordsQuery = await pool.query(`
-      SELECT m.name as map_name, ps.high_score, ps.score_id
-      FROM "Player_Score" ps
-      JOIN "Map" m ON ps.map_id = m.map_id
-      WHERE ps.user_id = $1
-      ORDER BY ps.high_score DESC
-    `, [userId]);
+//     // Récords
+//     const recordsQuery = await pool.query(`
+//       SELECT m.name as map_name, ps.high_score, ps.score_id
+//       FROM "Player_Score" ps
+//       JOIN "Map" m ON ps.map_id = m.map_id
+//       WHERE ps.user_id = $1
+//       ORDER BY ps.high_score DESC
+//     `, [userId]);
 
-    const garageValue = garageQuery.rows
-      .filter(car => car.unlocked)
-      .reduce((sum, car) => sum + car.cost_to_unlock, 0);
+//     const garageValue = garageQuery.rows
+//       .filter(car => car.unlocked)
+//       .reduce((sum, car) => sum + car.cost_to_unlock, 0);
 
-    res.json({
-      user: {
-        ...userData,
-        level: Math.floor(userData.monedas / 3000) + 1,
-        garage_value: garageValue,
-        total_cars: garageQuery.rows.filter(c => c.unlocked).length,
-        total_cars_available: garageQuery.rows.length,
-        maps_completed: recordsQuery.rows.length
-      },
-      garage: garageQuery.rows,
-      trophies: trophiesQuery.rows,
-      records: recordsQuery.rows
-    });
+//     res.json({
+//       user: {
+//         ...userData,
+//         level: Math.floor(userData.monedas / 3000) + 1,
+//         garage_value: garageValue,
+//         total_cars: garageQuery.rows.filter(c => c.unlocked).length,
+//         total_cars_available: garageQuery.rows.length,
+//         maps_completed: recordsQuery.rows.length
+//       },
+//       garage: garageQuery.rows,
+//       trophies: trophiesQuery.rows,
+//       records: recordsQuery.rows
+//     });
 
-  } catch (error) {
-    console.error("Error al obtener perfil:", error);
-    res.status(500).json({ error: "Error interno" });
-  }
-});
+//   } catch (error) {
+//     console.error("Error al obtener perfil:", error);
+//     res.status(500).json({ error: "Error interno" });
+//   }
+// });
 
 // --- 5. WIKI DE MAPAS  ---
 app.get("/api/maps/public", async (req, res) => {
