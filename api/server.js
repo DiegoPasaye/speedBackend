@@ -250,30 +250,30 @@ app.get("/api/leaderboard/global", async (req, res) => {
 // });
 
 // --- 5. WIKI DE MAPAS  ---
-app.get("/api/maps/public", async (req, res) => {
-  try {
-    const query = `
-      SELECT 
-        m.map_id, 
-        m.name, 
-        m.cost_to_unlock,
-        m.description,
-        -- Récord Mundial (Máximo histórico de cualquier jugador)
-        COALESCE((SELECT MAX(high_score) FROM "Player_Score" ps WHERE ps.map_id = m.map_id), 0) as world_record,
-        -- Popularidad (Cuántos jugadores tienen este mapa)
-        (SELECT COUNT(*) FROM "Player_Map_Inventory" pmi WHERE pmi.map_id = m.map_id) as total_owners
-      FROM "Map" m
-      ORDER BY m.cost_to_unlock ASC
-    `;
+// app.get("/api/maps/public", async (req, res) => {
+//   try {
+//     const query = `
+//       SELECT 
+//         m.map_id, 
+//         m.name, 
+//         m.cost_to_unlock,
+//         m.description,
+//         -- Récord Mundial (Máximo histórico de cualquier jugador)
+//         COALESCE((SELECT MAX(high_score) FROM "Player_Score" ps WHERE ps.map_id = m.map_id), 0) as world_record,
+//         -- Popularidad (Cuántos jugadores tienen este mapa)
+//         (SELECT COUNT(*) FROM "Player_Map_Inventory" pmi WHERE pmi.map_id = m.map_id) as total_owners
+//       FROM "Map" m
+//       ORDER BY m.cost_to_unlock ASC
+//     `;
 
-    const result = await pool.query(query);
-    res.json(result.rows);
+//     const result = await pool.query(query);
+//     res.json(result.rows);
 
-  } catch (error) {
-    console.error("Error al obtener wiki pública:", error);
-    res.status(500).json({ error: "Error interno" });
-  }
-});
+//   } catch (error) {
+//     console.error("Error al obtener wiki pública:", error);
+//     res.status(500).json({ error: "Error interno" });
+//   }
+// });
 
 
 // --- INICIAR SERVIDOR ---
