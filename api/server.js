@@ -272,6 +272,66 @@ app.get("/api/maps/public", async (req, res) => {
   }
 });
 
+app.post("/api/achievements/claim", async (req, res) => {
+  const { userId, achievementId } = req.body;
+
+  if (!userId || !achievementId) {
+    return res.status(400).json({ error: "Faltan datos" });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Verificar que el logro está desbloqueado pero NO reclamado
+    const checkQuery = await client.query(
+      `SELECT * FROM "Player_Achievement" 
+       WHERE user_id = $1 AND achievement_id = $2 AND claimed_at IS NULL`,
+      [userId, achievementId]
+    );
+
+    if (checkQuery.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: "Logro no disponible o ya reclamado" });
+    }
+
+    // 2. Obtener la cantidad de monedas del logro
+    const achQuery = await client.query(
+      `SELECT reward_monedas FROM "Achievement" WHERE achievement_id = $1`,
+      [achievementId]
+    );
+    const rewardAmount = achQuery.rows[0].reward_monedas;
+
+    // 3. Marcar como reclamado (claimed_at = NOW())
+    await client.query(
+      `UPDATE "Player_Achievement" 
+       SET claimed_at = NOW() 
+       WHERE user_id = $1 AND achievement_id = $2`,
+      [userId, achievementId]
+    );
+
+    // 4. Sumar monedas al perfil
+    await client.query(
+      `UPDATE "Profile" 
+       SET monedas = monedas + $1 
+       WHERE user_id = $2`,
+      [rewardAmount, userId]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({ message: "¡Recompensa reclamada!", added_coins: rewardAmount });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error("Error al reclamar:", error);
+    res.status(500).json({ error: "Error interno al reclamar" });
+  } finally {
+    client.release();
+  }
+});
+
 
 // --- INICIAR SERVIDOR ---
 // Solo arranca el servidor si NO estamos en Vercel
