@@ -1,5 +1,5 @@
 -- ==========================================
--- SCRIPT DE POBLADO MASIVO (SEEDING) - V12 (Lore Único por Variante)
+-- SCRIPT DE POBLADO MASIVO (SEEDING) - V13 (Recompensas garantizadas)
 -- ==========================================
 
 -- 0. ACTIVAR EXTENSIÓN
@@ -139,13 +139,30 @@ BEGIN
             END LOOP;
         END IF;
 
-        -- Logros
+        -- G. Logros
+        -- Modificado: Los primeros 15 usuarios siempre tendrán al menos un logro completado SIN reclamar
         num_achs_extra := floor(random() * 6);
+        
+        -- Aseguramos que al menos tenga 1 logro para asignar
+        IF num_achs_extra = 0 AND i <= 15 THEN
+            num_achs_extra := 1;
+        END IF;
+
         IF num_achs_extra > 0 THEN
             FOR curr_ach_id IN SELECT achievement_id FROM "Achievement" ORDER BY random() LIMIT num_achs_extra LOOP
                 BEGIN
                     INSERT INTO "Player_Achievement" (user_id, achievement_id, unlocked_at, claimed_at)
-                    VALUES (curr_user_id, curr_ach_id, NOW(), CASE WHEN random() > 0.4 THEN NOW() ELSE NULL END);
+                    VALUES (
+                        curr_user_id, 
+                        curr_ach_id, 
+                        NOW(), 
+                        -- Para los primeros 15 usuarios, forzamos al menos uno sin reclamar (NULL)
+                        -- Para los demas es aleatorio
+                        CASE 
+                            WHEN i <= 15 THEN NULL 
+                            ELSE CASE WHEN random() > 0.4 THEN NOW() ELSE NULL END 
+                        END
+                    );
                 EXCEPTION WHEN unique_violation THEN END;
             END LOOP;
         END IF;

@@ -178,7 +178,7 @@ app.get("/api/leaderboard/global", async (req, res) => {
 // --- 4. PERFIL COMPLETO (ESTE FALTABA) ---
 app.get("/api/profile/:userId", async (req, res) => {
   const { userId } = req.params;
-  try{
+  try {
     // Datos del Usuario
     const userQuery = await pool.query(`
       SELECT u.username, u.created_at, p.display_name, p.monedas, p.races_played
@@ -272,7 +272,38 @@ app.get("/api/maps/public", async (req, res) => {
   }
 });
 
-app.post("/api/achievements/claim", async (req, res) => {
+app.get("/api/rewards/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Traemos TODOS los logros posibles
+    // Hacemos LEFT JOIN con los logros del jugador para saber si ya lo tiene y si ya lo cobró
+    const query = `
+      SELECT 
+        a.achievement_id,
+        a.name,
+        a.description,
+        a.reward_monedas,
+        CASE WHEN pa.user_id IS NOT NULL THEN true ELSE false END as achieved,
+        pa.unlocked_at,
+        pa.claimed_at
+      FROM "Achievement" a
+      LEFT JOIN "Player_Achievement" pa 
+        ON a.achievement_id = pa.achievement_id AND pa.user_id = $1
+      ORDER BY a.reward_monedas ASC
+    `;
+
+    const result = await pool.query(query, [userId]);
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error("Error al obtener recompensas:", error);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// B. Reclamar una recompensa
+app.post("/api/rewards/claim", async (req, res) => {
   const { userId, achievementId } = req.body;
 
   if (!userId || !achievementId) {
@@ -284,49 +315,57 @@ app.post("/api/achievements/claim", async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Verificar que el logro está desbloqueado pero NO reclamado
-    const checkQuery = await client.query(
-      `SELECT * FROM "Player_Achievement" 
-       WHERE user_id = $1 AND achievement_id = $2 AND claimed_at IS NULL`,
-      [userId, achievementId]
-    );
+    // 1. Verificar que el logro existe, está desbloqueado y NO ha sido reclamado
+    const checkQuery = `
+      SELECT * FROM "Player_Achievement" 
+      WHERE user_id = $1 AND achievement_id = $2
+    `;
+    const checkRes = await client.query(checkQuery, [userId, achievementId]);
 
-    if (checkQuery.rows.length === 0) {
+    if (checkRes.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: "Logro no disponible o ya reclamado" });
+      return res.status(400).json({ error: "No has desbloqueado este logro aún." });
     }
 
-    // 2. Obtener la cantidad de monedas del logro
-    const achQuery = await client.query(
-      `SELECT reward_monedas FROM "Achievement" WHERE achievement_id = $1`,
-      [achievementId]
-    );
-    const rewardAmount = achQuery.rows[0].reward_monedas;
+    if (checkRes.rows[0].claimed_at !== null) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: "Ya reclamaste esta recompensa." });
+    }
 
-    // 3. Marcar como reclamado (claimed_at = NOW())
-    await client.query(
-      `UPDATE "Player_Achievement" 
-       SET claimed_at = NOW() 
-       WHERE user_id = $1 AND achievement_id = $2`,
-      [userId, achievementId]
-    );
+    // 2. Obtener cuánto vale el premio
+    const rewardQuery = `SELECT reward_monedas FROM "Achievement" WHERE achievement_id = $1`;
+    const rewardRes = await client.query(rewardQuery, [achievementId]);
+    const monto = rewardRes.rows[0].reward_monedas;
+
+    // 3. Marcar como reclamado (Poner fecha en claimed_at)
+    await client.query(`
+      UPDATE "Player_Achievement"
+      SET claimed_at = NOW()
+      WHERE user_id = $1 AND achievement_id = $2
+    `, [userId, achievementId]);
 
     // 4. Sumar monedas al perfil
-    await client.query(
-      `UPDATE "Profile" 
-       SET monedas = monedas + $1 
-       WHERE user_id = $2`,
-      [rewardAmount, userId]
-    );
+    await client.query(`
+      UPDATE "Profile"
+      SET monedas = monedas + $1
+      WHERE user_id = $2
+    `, [monto, userId]);
+
+    // 5. Obtener nuevo saldo para devolverlo al front
+    const balanceRes = await client.query(`SELECT monedas FROM "Profile" WHERE user_id = $1`, [userId]);
 
     await client.query('COMMIT');
 
-    res.json({ message: "¡Recompensa reclamada!", added_coins: rewardAmount });
+    res.json({
+      success: true,
+      message: "Recompensa reclamada",
+      new_balance: balanceRes.rows[0].monedas
+    });
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error("Error al reclamar:", error);
-    res.status(500).json({ error: "Error interno al reclamar" });
+    console.error("Error al reclamar recompensa:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   } finally {
     client.release();
   }
