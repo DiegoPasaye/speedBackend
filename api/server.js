@@ -389,10 +389,10 @@ app.post("/api/rewards/claim", async (req, res) => {
 
 // --- 7. GUARDAR PARTIDA (GAME OVER) ---
 app.post("/api/game/save-run", async (req, res) => {
-  const { userId, mapId, score, coins } = req.body;
+  const { userId, score, coins } = req.body;
 
   // Validación básica
-  if (!userId || !mapId || score === undefined || coins === undefined) {
+  if (!userId || score === undefined || coins === undefined) {
     return res.status(400).json({ error: "Faltan datos de la partida" });
   }
 
@@ -412,12 +412,12 @@ app.post("/api/game/save-run", async (req, res) => {
     // Intentamos insertar el nuevo puntaje. 
     // Si ya existe un registro para este usuario+mapa, actualizamos SOLO si el nuevo es mayor.
     await client.query(`
-      INSERT INTO "Player_Score" (user_id, map_id, high_score)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (user_id, map_id) 
+      INSERT INTO "Player_Score" (user_id, high_score)
+      VALUES ($1, $2)
+      ON CONFLICT (user_id) 
       DO UPDATE SET 
         high_score = GREATEST("Player_Score".high_score, EXCLUDED.high_score)
-    `, [userId, mapId, score]);
+    `, [userId, score]);
 
     // 3. (Opcional) Verificar Logros al vuelo
     // Por simplicidad, lo dejamos para otra lógica o trigger.
