@@ -371,6 +371,65 @@ app.post("/api/rewards/claim", async (req, res) => {
   }
 });
 
+// --- 7. GUARDAR PARTIDA (GAME OVER) ---
+app.post("/api/game/save-run", async (req, res) => {
+  const { userId, mapId, score, coins } = req.body;
+
+  // Validación básica
+  if (!userId || !mapId || score === undefined || coins === undefined) {
+    return res.status(400).json({ error: "Faltan datos de la partida" });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    await client.query(`
+      UPDATE "Profile"
+      SET monedas = monedas + $1,
+          races_played = races_played + 1
+      WHERE user_id = $2
+    `, [coins, userId]);
+
+    // 2. Manejar el Puntaje (High Score)
+    // Intentamos insertar el nuevo puntaje. 
+    // Si ya existe un registro para este usuario+mapa, actualizamos SOLO si el nuevo es mayor.
+    await client.query(`
+      INSERT INTO "Player_Score" (user_id, map_id, high_score)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, map_id) 
+      DO UPDATE SET 
+        high_score = GREATEST("Player_Score".high_score, EXCLUDED.high_score)
+    `, [userId, mapId, score]);
+
+    // 3. (Opcional) Verificar Logros al vuelo
+    // Por simplicidad, lo dejamos para otra lógica o trigger.
+
+    await client.query('COMMIT');
+
+    // Devolvemos el nuevo saldo para que el juego lo actualice en la UI
+    const profileRes = await client.query(
+        'SELECT monedas, races_played FROM "Profile" WHERE user_id = $1', 
+        [userId]
+    );
+
+    res.json({
+      success: true,
+      message: "Partida guardada",
+      new_total_coins: profileRes.rows[0].monedas,
+      races_played: profileRes.rows[0].races_played
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error("Error al guardar partida:", error);
+    res.status(500).json({ error: "Error interno al guardar progreso" });
+  } finally {
+    client.release();
+  }
+});
+
 
 // --- INICIAR SERVIDOR ---
 // Solo arranca el servidor si NO estamos en Vercel
