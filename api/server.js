@@ -23,6 +23,31 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+pool.on('error', (err) => {
+  console.error('🔴 Error inesperado en el cliente de base de datos:', err);
+  // No salimos del proceso (process.exit) para intentar mantenerlo vivo
+});
+
+// 1. Verificar conexión a DB al iniciar
+pool.connect()
+  .then(client => {
+    console.log("✅ Conexión a Base de Datos exitosa");
+    client.release();
+  })
+  .catch(err => {
+    console.error("❌ ERROR FATAL DE BASE DE DATOS:", err.message);
+  });
+
+// 2. Atrapar errores silenciosos que matan el servidor
+process.on('uncaughtException', (error) => {
+  console.error('🔥 ERROR NO CAPTURADO (Excepción):', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 ERROR NO CAPTURADO (Promesa):', reason);
+});
+
+
 // --- RUTA BASE ---
 app.get("/api", (req, res) => {
   res.json({ message: "Backend Speed funcionando correctamente en Vercel 🚀" });
@@ -166,15 +191,6 @@ app.get("/api/leaderboard/global", async (req, res) => {
   }
 });
 
-// Exportación para Vercel
-
-
-// if (process.env.NODE_ENV !== 'production') {
-//   const PORT = process.env.PORT || 3000;
-//   app.listen(PORT, () => {
-//     console.log(`Server running on http://localhost:${PORT}`);
-//   });
-// }
 // --- 4. PERFIL COMPLETO (ESTE FALTABA) ---
 app.get("/api/profile/:userId", async (req, res) => {
   const { userId } = req.params;
@@ -410,8 +426,8 @@ app.post("/api/game/save-run", async (req, res) => {
 
     // Devolvemos el nuevo saldo para que el juego lo actualice en la UI
     const profileRes = await client.query(
-        'SELECT monedas, races_played FROM "Profile" WHERE user_id = $1', 
-        [userId]
+      'SELECT monedas, races_played FROM "Profile" WHERE user_id = $1',
+      [userId]
     );
 
     res.json({
@@ -430,6 +446,92 @@ app.post("/api/game/save-run", async (req, res) => {
   }
 });
 
+app.put("/api/profile/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const { username, email, display_name } = req.body;
+
+  if (!username && !email && !display_name) {
+    return res.status(400).json({ error: "No se enviaron datos para actualizar" });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Actualizar datos de la tabla "User" (Credenciales)
+    if (username || email) {
+      await client.query(`
+        UPDATE "User"
+        SET username = COALESCE($1, username),
+            email = COALESCE($2, email)
+        WHERE user_id = $3
+      `, [username || null, email || null, userId]);
+    }
+
+    // 2. Actualizar datos de la tabla "Profile" (Públicos)
+    if (display_name) {
+      await client.query(`
+        UPDATE "Profile"
+        SET display_name = $1
+        WHERE user_id = $2
+      `, [display_name, userId]);
+    }
+
+    await client.query('COMMIT');
+
+    // 3. Devolver los datos actualizados
+    const updatedUser = await client.query(`
+      SELECT u.username, u.email, p.display_name
+      FROM "User" u
+      JOIN "Profile" p ON u.user_id = p.user_id
+      WHERE u.user_id = $1
+    `, [userId]);
+
+    res.json({
+      message: "Perfil actualizado correctamente",
+      user: updatedUser.rows[0]
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error("Error al actualizar perfil:", error);
+
+    // Manejo de errores específicos (Duplicados)
+    if (error.code === '23505') {
+      if (error.detail.includes('username')) {
+        return res.status(409).json({ error: "Ese nombre de usuario ya está ocupado" });
+      }
+      if (error.detail.includes('email')) {
+        return res.status(409).json({ error: "Ese correo ya está registrado" });
+      }
+    }
+
+    res.status(500).json({ error: "Error interno al actualizar" });
+  } finally {
+    client.release();
+  }
+});
+
+// --- 9. ELIMINAR CUENTA (DELETE) ---
+app.delete("/api/profile/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+
+    const result = await pool.query('DELETE FROM "User" WHERE user_id = $1', [userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json({ message: "Cuenta eliminada permanentemente. ¡Te extrañaremos!" });
+
+  } catch (error) {
+    console.error("Error al eliminar cuenta:", error);
+    res.status(500).json({ error: "Error interno al eliminar cuenta" });
+  }
+});
 
 // --- INICIAR SERVIDOR ---
 // Solo arranca el servidor si NO estamos en Vercel
